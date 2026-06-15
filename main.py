@@ -34,7 +34,7 @@ API_ID = int(os.environ.get("TELEGRAM_API_ID", 0))
 API_HASH = os.environ.get("TELEGRAM_API_HASH", "")
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 SOURCE_CHAT_RAW = os.environ.get("SOURCE_CHAT", "")
-MONGO_URI = os.environ.get("MONGO_URL", "")
+MONGO_URL = os.environ.get("MONGO_URL", "")
 
 def parse_chat_identifier(chat: str) -> Union[str, int]:
     if not chat: return ""
