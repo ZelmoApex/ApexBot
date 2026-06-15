@@ -1,0 +1,10 @@
+# ... (baaki ka upar ka code same rahega)
+    - name: Run Secure Bot
+      env:
+        TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
+        TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
+        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        SOURCE_CHAT: ${{ secrets.SOURCE_CHAT }}
+        MONGO_URI: ${{ secrets.MONGO_URI }} # Naya Secret
+      run: python main.py
+      
