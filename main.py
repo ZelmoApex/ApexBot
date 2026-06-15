@@ -55,8 +55,8 @@ DB_DATA = {
 }
 
 CUSTOM_MESSAGES = {
-    "msg1": "Hello! Welcome to our automated channel.",
-    "msg2": "", "msg3": ""
+    "msg1": "J0!N£ M¥ ‡}!0",
+    "msg2": "J0!N£ M¥ ‡}!0", "msg3": "J0!N£ M¥ ‡}!0"
 }
 
 # MongoDB Helper Functions
