@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Telegram Dedicated Multi-Account Control-Panel (With Isolated Approval Groups)
+Telegram Dedicated Multi-Account Control-Panel (Public Group Auto-Approval Fixed)
 ======================================================================
 """
 
@@ -40,8 +40,12 @@ MONGO_URL = os.environ.get("MONGO_URL", "")
 def parse_chat_identifier(chat: str) -> Union[str, int]:
     if not chat: return ""
     clean_chat = str(chat).strip()
-    if clean_chat.startswith('https://t.me/+') or clean_chat.startswith('https://t.me/joinchat/'):
-        return clean_chat # Keep raw link for private chat joins if needed
+    if clean_chat.startswith('https://t.me/'):
+        # Extract username from public links
+        parts = clean_chat.split('/')
+        if len(parts) > 0 and not parts[-1].startswith('+'):
+            return f"@{parts[-1]}"
+        return clean_chat
     if clean_chat.startswith('-') and clean_chat[1:].isdigit(): return int(clean_chat)
     if clean_chat.isdigit(): return int(clean_chat)
     return clean_chat
@@ -97,86 +101,59 @@ def save_cloud_data():
         logger.error(f"❌ MongoDB Save Error: {e}")
     return False
 
-# Initialize Data Load
 fetch_cloud_data()
 
-# Help text layout
-HELP_TEXT = (
-    "⚙️ **Ultimate Easy Router Help Menu** ⚙️\n\n"
-    "👇 **Sabhi Commands Ki List:**\n\n"
-    "🟢 **ACCOUNT 1 SETUP:**\n"
-    "• `/add_id1 <string_session>` ➔ Account 1 connect karein.\n"
-    "• `/add_group1 @grp1, @grp2` ➔ Forwarding targets dalein.\n"
-    "• `/add_approve1 <link/id>` ➔ Alag se approval group jodein.\n\n"
-    "🔵 **ACCOUNT 2 SETUP:**\n"
-    "• `/add_id2 <string_session>` ➔ Account 2 connect karein.\n"
-    "• `/add_group2 @grp3, @grp4` ➔ Forwarding targets dalein.\n"
-    "• `/add_approve2 <link/id>` ➔ Alag se approval group jodein.\n\n"
-    "📢 **TIMER MESSAGES (7-10 Min Ads):**\n"
-    "• `/msg1 <text>` | `/msg2 <text>`\n\n"
-    "⚙️ **SYSTEM CONTROL:**\n"
-    "• `/status` ➔ Status dekhein | `/clear_all` ➔ Data reset."
-)
-
-def get_status_text():
-    f_status = "🟢 ON" if IS_FORWARDER_ACTIVE else "🔴 OFF"
-    t_status = "🟢 ON" if IS_TIMER_ACTIVE else "🔴 OFF"
-    a_status = "🟢 ON" if IS_APPROVAL_ACTIVE else "🔴 OFF"
-    return (
-        f"🤖 **Easy Multi-Account Panel (Isolated Approvals)**\n"
-        f"-----------------------------------\n"
-        f"📡 **Live Forwarder:** {f_status}\n"
-        f"⏳ **7-10 Min Timer:** {t_status}\n"
-        f"⚡ **Auto-Request Approver:** {a_status}\n\n"
-        f"👤 **Account 1:** {DB_DATA['id1_name']}\n"
-        f"🎯 **Target Group 1:** `{DB_DATA['group1_targets']}`\n"
-        f"🔐 **Approval Group 1:** `{DB_DATA.get('approve1_chat', 'Not Set')}`\n\n"
-        f"👤 **Account 2:** {DB_DATA['id2_name']}\n"
-        f"🎯 **Target Group 2:** `{DB_DATA['group2_targets']}`\n"
-        f"🔐 **Approval Group 2:** `{DB_DATA.get('approve2_chat', 'Not Set')}`"
-    )
-
 # =====================================================================
-# BACKGROUND PENDING REQUESTS CLEARER (Using Isolated Approval Settings)
+# BACKGROUND PENDING REQUESTS CLEARER (Optimized for Public/Private Username)
 # =====================================================================
 async def old_requests_cleaner(user_clients):
-    """Har 3 minute me alag se diye gaye approval groups ki requests accept karega"""
-    await asyncio.sleep(20)
+    """Har 60 seconds me dedicated approval groups ki requests check karke approve karega"""
+    await asyncio.sleep(15)
     while True:
         if IS_APPROVAL_ACTIVE:
-            # Process Account 1 Dedicated Approval Group
+            # Process Account 1
             if "id1" in user_clients and DB_DATA.get("approve1_chat"):
                 client = user_clients["id1"]
                 target = DB_DATA["approve1_chat"]
                 try:
-                    async for request in client.iter_chat_join_requests(target):
+                    # Get entity first to resolve username/ID perfectly
+                    entity = await client.get_input_entity(target)
+                    async for request in client.iter_chat_join_requests(entity):
                         if not IS_APPROVAL_ACTIVE: break
                         try:
                             await client(HideChatJoinRequestRequest(
-                                peer=target, user_id=request.user_id, approve=True
+                                peer=entity, user_id=request.user_id, approve=True
                             ))
-                            await asyncio.sleep(random.uniform(2, 4))
-                        except Exception: pass
-                except Exception: pass
+                            logger.info(f"✅ Account 1 approved a member in {target}")
+                            await asyncio.sleep(random.uniform(1.5, 3.0)) # Thoda fast delay
+                        except Exception as ex:
+                            logger.error(f"Approval error inside account 1: {ex}")
+                except Exception as e:
+                    logger.error(f"Error fetching requests for Account 1: {e}")
 
-            # Process Account 2 Dedicated Approval Group
+            # Process Account 2
             if "id2" in user_clients and DB_DATA.get("approve2_chat"):
                 client = user_clients["id2"]
                 target = DB_DATA["approve2_chat"]
                 try:
-                    async for request in client.iter_chat_join_requests(target):
+                    entity = await client.get_input_entity(target)
+                    async for request in client.iter_chat_join_requests(entity):
                         if not IS_APPROVAL_ACTIVE: break
                         try:
                             await client(HideChatJoinRequestRequest(
-                                peer=target, user_id=request.user_id, approve=True
+                                peer=entity, user_id=request.user_id, approve=True
                             ))
-                            await asyncio.sleep(random.uniform(2, 4))
-                        except Exception: pass
-                except Exception: pass
-        await asyncio.sleep(180)
+                            logger.info(f"✅ Account 2 approved a member in {target}")
+                            await asyncio.sleep(random.uniform(1.5, 3.0))
+                        except Exception as ex:
+                            logger.error(f"Approval error inside account 2: {ex}")
+                except Exception as e:
+                    logger.error(f"Error fetching requests for Account 2: {e}")
+                    
+        await asyncio.sleep(60) # Runs every 1 minute now for faster clearing
 
 # =====================================================================
-# AUTOMATIC 7-10 MINUTES PERIODIC BROADCASTER
+# AUTOMATIC BROADCASTER & PANEL BOT HANDLERS
 # =====================================================================
 async def periodic_broadcaster(user_clients):
     await asyncio.sleep(15)
@@ -197,9 +174,6 @@ async def periodic_broadcaster(user_clients):
                         await asyncio.sleep(random.uniform(2, 5))
         await asyncio.sleep(random.randint(420, 600))
 
-# =====================================================================
-# BOT HANDLERS & SECURITY CHECK
-# =====================================================================
 def register_bot_handlers(bot_client: TelegramClient, user_clients, loop):
 
     @bot_client.on(events.NewMessage())
@@ -214,7 +188,6 @@ def register_bot_handlers(bot_client: TelegramClient, user_clients, loop):
             await event.answer("bot tumare liye nahi hai", alert=True)
             raise events.StopPropagation
 
-    # --- START COMMAND ---
     @bot_client.on(events.NewMessage(chats=ADMIN_ID, pattern='/start'))
     async def start_handler(event):
         buttons = [
@@ -223,22 +196,30 @@ def register_bot_handlers(bot_client: TelegramClient, user_clients, loop):
             [Button.inline("⚡ Approver ON", b"a_on"), Button.inline("⚡ Approver OFF", b"a_off")],
             [Button.inline("📊 Check Status", b"check_status")]
         ]
+        f_status = "🟢 ON" if IS_FORWARDER_ACTIVE else "🔴 OFF"
+        t_status = "🟢 ON" if IS_TIMER_ACTIVE else "🔴 OFF"
+        a_status = "🟢 ON" if IS_APPROVAL_ACTIVE else "🔴 OFF"
         await event.respond(
-            "⚙️ **Easy Account Router Control Panel (Isolated Approval)** ⚙️\n\n"
-            "Bot active hai! Commands ki list ke liye `/help` bhein.\n\n"
-            "👇 **Quick Controls:**",
+            f"⚙️ **Easy Account Router Control Panel** ⚙️\n\n"
+            f"📡 Forwarder: {f_status} | ⏳ Timer: {t_status} | ⚡ Approver: {a_status}\n\n"
+            f"Commands dekhne ke liye `/status` ya `/help` bhein.",
             buttons=buttons
         )
 
-    # --- HELP COMMAND ---
-    @bot_client.on(events.NewMessage(chats=ADMIN_ID, pattern='/help'))
-    async def help_handler(event):
-        await event.respond(HELP_TEXT)
-
-    # --- STATUS COMMAND ---
     @bot_client.on(events.NewMessage(chats=ADMIN_ID, pattern='/status'))
     async def status_command_handler(event):
-        await event.respond(get_status_text())
+        f_status = "🟢 ON" if IS_FORWARDER_ACTIVE else "🔴 OFF"
+        t_status = "🟢 ON" if IS_TIMER_ACTIVE else "🔴 OFF"
+        a_status = "🟢 ON" if IS_APPROVAL_ACTIVE else "🔴 OFF"
+        await event.respond(
+            f"🤖 **Easy Multi-Account Panel Status**\n"
+            f"-----------------------------------\n"
+            f"📡 Forwarder: {f_status} | ⏳ Timer: {t_status} | ⚡ Approver: {a_status}\n\n"
+            f"👤 **Account 1:** {DB_DATA['id1_name']}\n"
+            f"🔐 **Approval Group 1:** `{DB_DATA.get('approve1_chat', 'Not Set')}`\n\n"
+            f"👤 **Account 2:** {DB_DATA['id2_name']}\n"
+            f"🔐 **Approval Group 2:** `{DB_DATA.get('approve2_chat', 'Not Set')}`"
+        )
 
     @bot_client.on(events.CallbackQuery(chats=ADMIN_ID))
     async def callback_handler(event):
@@ -250,15 +231,22 @@ def register_bot_handlers(bot_client: TelegramClient, user_clients, loop):
         elif event.data == b"a_on": IS_APPROVAL_ACTIVE = True
         elif event.data == b"a_off": IS_APPROVAL_ACTIVE = False
             
-        await event.edit(get_status_text(), buttons=[
-            [Button.inline("📡 Forwarder ON", b"f_on"), Button.inline("📡 Forwarder OFF", b"f_off")],
-            [Button.inline("⏳ Timer ON", b"t_on"), Button.inline("⏳ Timer OFF", b"t_off")],
-            [Button.inline("⚡ Approver ON", b"a_on"), Button.inline("⚡ Approver OFF", b"a_off")],
-            [Button.inline("📊 Check Status", b"check_status")]
-        ])
+        f_status = "🟢 ON" if IS_FORWARDER_ACTIVE else "🔴 OFF"
+        t_status = "🟢 ON" if IS_TIMER_ACTIVE else "🔴 OFF"
+        a_status = "🟢 ON" if IS_APPROVAL_ACTIVE else "🔴 OFF"
+        await event.edit(
+            f"⚙️ **Control Panel Panel** ⚙️\n\n"
+            f"📡 Forwarder: {f_status} | ⏳ Timer: {t_status} | ⚡ Approver: {a_status}",
+            buttons=[
+                [Button.inline("📡 Forwarder ON", b"f_on"), Button.inline("📡 Forwarder OFF", b"f_off")],
+                [Button.inline("⏳ Timer ON", b"t_on"), Button.inline("⏳ Timer OFF", b"t_off")],
+                [Button.inline("⚡ Approver ON", b"a_on"), Button.inline("⚡ Approver OFF", b"a_off")],
+                [Button.inline("📊 Check Status", b"check_status")]
+            ]
+        )
 
     async def connect_and_save_user(session_str, key_prefix, event):
-        status_msg = await event.respond(f"⏳ Account {key_prefix[-1]} ko connect kiya ja raha hai...")
+        status_msg = await event.respond(f"⏳ Account {key_prefix[-1]} connect ho raha hai...")
         try:
             temp_client = TelegramClient(StringSession(session_str), API_ID, API_HASH)
             await temp_client.connect()
@@ -268,16 +256,12 @@ def register_bot_handlers(bot_client: TelegramClient, user_clients, loop):
             me = await temp_client.get_me()
             name_display = f"{me.first_name} (@{me.username or 'NoUser'})"
             
-            if key_prefix in user_clients and user_clients[key_prefix]:
-                try: await user_clients[key_prefix].disconnect()
-                except Exception: pass
-                
             DB_DATA[f"{key_prefix}_session"] = session_str
             DB_DATA[f"{key_prefix}_name"] = name_display
             save_cloud_data()
             user_clients[key_prefix] = temp_client
             
-            # Setup Live Forwarder
+            # Setup Live Live Forwarder
             @temp_client.on(events.NewMessage(chats=SOURCE_CHAT))
             async def forward_handler(ev):
                 if not IS_FORWARDER_ACTIVE or isinstance(ev.message, MessageService): return
@@ -288,21 +272,8 @@ def register_bot_handlers(bot_client: TelegramClient, user_clients, loop):
                         await ev.client.send_message(target, ev.message)
                     except Exception: pass
 
-            # Setup Live Auto-Request Approval (For incoming live requests on dedicated approval group)
-            @temp_client.on(events.ChatAction)
-            async def approval_handler(ev):
-                if not IS_APPROVAL_ACTIVE: return
-                target_approval = DB_DATA.get("approve1_chat") if key_prefix == "id1" else DB_DATA.get("approve2_chat")
-                if target_approval and ev.user_joined and ev.action_message and getattr(ev.action_message, 'action', None):
-                    if ev.chat_id == target_approval or (ev.chat and getattr(ev.chat, 'username', '') == target_approval):
-                        try:
-                            await ev.client(HideChatJoinRequestRequest(
-                                peer=ev.chat_id, user_id=ev.user_id, approve=True
-                            ))
-                        except Exception: pass
-            
             loop.create_task(temp_client.run_until_disconnected())
-            await status_msg.edit(f"✅ **Account {key_prefix[-1]} Connected!**\nUser: **{name_display}**")
+            await status_msg.edit(f"✅ **Account {key_prefix[-1]} Connected!**\nUser: {name_display}")
         except Exception as e:
             await status_msg.edit(f"❌ Connection Error: {e}")
 
@@ -319,13 +290,13 @@ def register_bot_handlers(bot_client: TelegramClient, user_clients, loop):
             if args:
                 DB_DATA["group1_targets"] = [parse_chat_identifier(t) for t in args.split(",") if t.strip()]
                 save_cloud_data()
-                await event.respond(f"✅ **Target Group 1 Updated!**\nLive Targets: `{DB_DATA['group1_targets']}`")
+                await event.respond("✅ Target Group 1 Updated!")
         elif text.startswith("/add_approve1"):
             arg = text.replace("/add_approve1", "").strip()
             if arg:
                 DB_DATA["approve1_chat"] = parse_chat_identifier(arg)
                 save_cloud_data()
-                await event.respond(f"✅ **Isolated Approval Group 1 Connected:** `{DB_DATA['approve1_chat']}`")
+                await event.respond(f"✅ **Approval Group 1 Connected:** `{DB_DATA['approve1_chat']}`")
                 
         elif text.startswith("/add_id2"):
             session = text.replace("/add_id2", "").strip()
@@ -335,24 +306,14 @@ def register_bot_handlers(bot_client: TelegramClient, user_clients, loop):
             if args:
                 DB_DATA["group2_targets"] = [parse_chat_identifier(t) for t in args.split(",") if t.strip()]
                 save_cloud_data()
-                await event.respond(f"✅ **Target Group 2 Updated!**\nLive Targets: `{DB_DATA['group2_targets']}`")
+                await event.respond("✅ Target Group 2 Updated!")
         elif text.startswith("/add_approve2"):
             arg = text.replace("/add_approve2", "").strip()
             if arg:
                 DB_DATA["approve2_chat"] = parse_chat_identifier(arg)
                 save_cloud_data()
-                await event.respond(f"✅ **Isolated Approval Group 2 Connected:** `{DB_DATA['approve2_chat']}`")
+                await event.respond(f"✅ **Approval Group 2 Connected:** `{DB_DATA['approve2_chat']}`")
 
-        elif text.startswith("/msg1"):
-            msg_text = text.replace("/msg1", "").strip()
-            if msg_text:
-                CUSTOM_MESSAGES["msg1"] = msg_text
-                await event.respond("✅ **Timer Message 1 Saved!**")
-        elif text.startswith("/msg2"):
-            msg_text = text.replace("/msg2", "").strip()
-            if msg_text:
-                CUSTOM_MESSAGES["msg2"] = msg_text
-                await event.respond("✅ **Timer Message 2 Saved!**")
         elif text == "/clear_all":
             for cl in user_clients.values():
                 try: await cl.disconnect()
@@ -360,7 +321,7 @@ def register_bot_handlers(bot_client: TelegramClient, user_clients, loop):
             user_clients.clear()
             DB_DATA.update({"id1_session": "", "id1_name": "[Not Connected]", "group1_targets": [], "approve1_chat": "", "id2_session": "", "id2_name": "[Not Connected]", "group2_targets": [], "approve2_chat": ""})
             save_cloud_data()
-            await event.respond("🗑️ Everything reset permanently in MongoDB.")
+            await event.respond("🗑️ Reset Done.")
 
 # =====================================================================
 # MAIN ENGINE RUNNER
@@ -397,8 +358,9 @@ async def main():
     asyncio.create_task(periodic_broadcaster(user_clients))
     asyncio.create_task(old_requests_cleaner(user_clients))
     
-    logger.info("🚀 Isolated Auto-Approval System Engine Online!")
+    logger.info("🚀 Smart Fix System Engine Online!")
     await bot_client.run_until_disconnected()
 
 if __name__ == "__main__":
     asyncio.run(main())
+        
