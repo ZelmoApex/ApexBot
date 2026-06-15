@@ -34,7 +34,7 @@ API_ID = int(os.environ.get("TELEGRAM_API_ID", 0))
 API_HASH = os.environ.get("TELEGRAM_API_HASH", "")
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 SOURCE_CHAT_RAW = os.environ.get("SOURCE_CHAT", "")
-MONGO_URI = os.environ.get("MONGO_URI", "")
+MONGO_URI = os.environ.get("MONGO_URL", "")
 
 def parse_chat_identifier(chat: str) -> Union[str, int]:
     if not chat: return ""
@@ -61,9 +61,9 @@ CUSTOM_MESSAGES = {
 
 # MongoDB Helper Functions
 db_collection = None
-if MONGO_URI:
+if MONGO_URL:
     try:
-        mongo_client = MongoClient(MONGO_URI)
+        mongo_client = MongoClient(MONGO_URL)
         # 'telegram_bot' naam ka DB aur 'settings' naam ka table/collection banega
         db_collection = mongo_client["telegram_bot"]["settings"]
         logger.info("🍃 MongoDB Connected Successfully!")
