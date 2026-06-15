@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Telegram Dedicated Multi-Account Control-Panel (MongoDB Edition)
+Telegram Dedicated Multi-Account Control-Panel (MONGO_URL Version)
 ======================================================================
 """
 
@@ -27,14 +27,14 @@ logging.basicConfig(
 logger = logging.getLogger("MongoMultiAccount")
 
 # =====================================================================
-# CONFIGURATION & MONGODB STORAGE
+# CONFIGURATION & MONGODB STORAGE (Changed to MONGO_URL)
 # =====================================================================
 ADMIN_ID = 8705901135  
 API_ID = int(os.environ.get("TELEGRAM_API_ID", 0))
 API_HASH = os.environ.get("TELEGRAM_API_HASH", "")
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 SOURCE_CHAT_RAW = os.environ.get("SOURCE_CHAT", "")
-MONGO_URL = os.environ.get("MONGO_URL", "")
+MONGO_URL = os.environ.get("MONGO_URL", "") # Updated to URL
 
 def parse_chat_identifier(chat: str) -> Union[str, int]:
     if not chat: return ""
@@ -59,16 +59,17 @@ CUSTOM_MESSAGES = {
     "msg2": "J0!N£ M¥ ‡}!0", "msg3": "J0!N£ M¥ ‡}!0"
 }
 
-# MongoDB Helper Functions
+# MongoDB Helper Functions (Uses MONGO_URL perfectly now)
 db_collection = None
 if MONGO_URL:
     try:
         mongo_client = MongoClient(MONGO_URL)
-        # 'telegram_bot' naam ka DB aur 'settings' naam ka table/collection banega
         db_collection = mongo_client["telegram_bot"]["settings"]
-        logger.info("🍃 MongoDB Connected Successfully!")
+        logger.info("🍃 MongoDB Connected Successfully using MONGO_URL!")
     except Exception as e:
         logger.error(f"❌ MongoDB Connection Error: {e}")
+else:
+    logger.error("❌ MONGO_URL Secret is missing in Environment Variables!")
 
 def fetch_cloud_data():
     global DB_DATA
@@ -97,11 +98,30 @@ def save_cloud_data():
 # Initialize Data Load
 fetch_cloud_data()
 
+# Help text layout
+HELP_TEXT = (
+    "⚙️ **Ultimate Easy Router Help Menu** ⚙️\n\n"
+    "Aap is bot se dono accounts aur unke groups ko live control kar sakte hain.\n\n"
+    "👇 **Sabhi Commands Ki List:**\n\n"
+    "🟢 **ACCOUNT 1 SETUP:**\n"
+    "• `/add_id1 <string_session>` ➔ Account 1 connect karein.\n"
+    "• `/add_group1 @grp1, @grp2` ➔ Account 1 ke targets dalein.\n\n"
+    "🔵 **ACCOUNT 2 SETUP:**\n"
+    "• `/add_id2 <string_session>` ➔ Account 2 connect karein.\n"
+    "• `/add_group2 @grp3, @grp4` ➔ Account 2 ke targets dalein.\n\n"
+    "📢 **TIMER MESSAGES (7-10 Min Ads):**\n"
+    "• `/msg1 <aapka prachar text>` ➔ Group 1 ke liye ad text set karein.\n"
+    "• `/msg2 <aapka prachar text>` ➔ Group 2 ke liye ad text set karein.\n\n"
+    "⚙️ **SYSTEM CONTROL:**\n"
+    "• `/status` ➔ Live status check karein.\n"
+    "• `/clear_all` ➔ Poora data permanent reset karein."
+)
+
 def get_status_text():
     f_status = "🟢 ON" if IS_FORWARDER_ACTIVE else "🔴 OFF"
     t_status = "🟢 ON" if IS_TIMER_ACTIVE else "🔴 OFF"
     return (
-        f"🤖 **Easy Multi-Account Panel (MongoDB)**\n"
+        f"🤖 **Easy Multi-Account Panel (MongoDB URL)**\n"
         f"-----------------------------------\n"
         f"📡 **Live Forwarder:** {f_status}\n"
         f"⏳ **7-10 Min Timer:** {t_status}\n\n"
@@ -151,6 +171,7 @@ def register_bot_handlers(bot_client: TelegramClient, user_clients, loop):
             await event.answer("bot tumare liye nahi hai", alert=True)
             raise events.StopPropagation
 
+    # --- START COMMAND ---
     @bot_client.on(events.NewMessage(chats=ADMIN_ID, pattern='/start'))
     async def start_handler(event):
         buttons = [
@@ -159,16 +180,21 @@ def register_bot_handlers(bot_client: TelegramClient, user_clients, loop):
             [Button.inline("📊 Check Status", b"check_status")]
         ]
         await event.respond(
-            "⚙️ **Easy Account Router Control Panel (MongoDB)** ⚙️\n\n"
-            "➡️ **Account 1 Setup:**\n"
-            "• `/add_id1 <string_session>`\n"
-            "• `/add_group1 @group1, @group2`\n\n"
-            "➡️ **Account 2 Setup:**\n"
-            "• `/add_id2 <string_session>`\n"
-            "• `/add_group2 @group3, @group4`\n\n"
-            "• `/clear_all` — Sab delete karne ke liye.",
+            "⚙️ **Easy Account Router Control Panel (MongoDB URL)** ⚙️\n\n"
+            "Bot active hai! Commands ki poori list dekhne ke liye `/help` bhein.\n\n"
+            "👇 **Quick Controls:**",
             buttons=buttons
         )
+
+    # --- HELP COMMAND ---
+    @bot_client.on(events.NewMessage(chats=ADMIN_ID, pattern='/help'))
+    async def help_handler(event):
+        await event.respond(HELP_TEXT)
+
+    # --- STATUS COMMAND ---
+    @bot_client.on(events.NewMessage(chats=ADMIN_ID, pattern='/status'))
+    async def status_command_handler(event):
+        await event.respond(get_status_text())
 
     @bot_client.on(events.CallbackQuery(chats=ADMIN_ID))
     async def callback_handler(event):
@@ -221,7 +247,7 @@ def register_bot_handlers(bot_client: TelegramClient, user_clients, loop):
 
     @bot_client.on(events.NewMessage(chats=ADMIN_ID))
     async def text_commands(event):
-        global DB_DATA
+        global DB_DATA, CUSTOM_MESSAGES
         text = event.raw_text.strip()
         
         if text.startswith("/add_id1"):
@@ -242,6 +268,16 @@ def register_bot_handlers(bot_client: TelegramClient, user_clients, loop):
                 DB_DATA["group2_targets"] = [parse_chat_identifier(t) for t in args.split(",") if t.strip()]
                 save_cloud_data()
                 await event.respond(f"✅ **Target Group 2 Updated!**\nLive Targets: `{DB_DATA['group2_targets']}`")
+        elif text.startswith("/msg1"):
+            msg_text = text.replace("/msg1", "").strip()
+            if msg_text:
+                CUSTOM_MESSAGES["msg1"] = msg_text
+                await event.respond("✅ **Timer Message 1 Saved!**")
+        elif text.startswith("/msg2"):
+            msg_text = text.replace("/msg2", "").strip()
+            if msg_text:
+                CUSTOM_MESSAGES["msg2"] = msg_text
+                await event.respond("✅ **Timer Message 2 Saved!**")
         elif text == "/clear_all":
             for cl in user_clients.values():
                 try: await cl.disconnect()
@@ -297,7 +333,7 @@ async def main():
         except Exception: pass
 
     asyncio.create_task(periodic_broadcaster(user_clients))
-    logger.info("🚀 MongoDB Protected Router Engine Online!")
+    logger.info("🚀 MongoDB Router Engine Connected via MONGO_URL Perfectly!")
     await bot_client.run_until_disconnected()
 
 if __name__ == "__main__":
