@@ -5,6 +5,6 @@
         TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         SOURCE_CHAT: ${{ secrets.SOURCE_CHAT }}
-        MONGO_URI: ${{ secrets.MONGO_URI }} # Naya Secret
+        MONGO_URI: ${{ secrets.MONGO_URL }} # Naya Secret
       run: python main.py
       
